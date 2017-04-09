@@ -6,6 +6,7 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include <clang-c/Index.h>
 
@@ -52,6 +53,11 @@ private:
      * set the command line args used of parsing
      */
     static void set_args(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
+	/**
+	 * set the root of clang_complete and search for it
+	 */
+	static void set_clang_complete_root(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
     /**
      * destroy any clang memory used. since JS is garbage collected,
@@ -102,17 +108,25 @@ public:
      */
     void set_args(v8::Local<v8::Array>& args);
 
+	/**
+	 * set the root of clang_complete and search for it
+	 */
+ 	void set_clang_complete_root(v8::Local<v8::String>& args);
+
     /**
      * release any memory associated with this translation unit from libclang
      */
     void dispose();
 
 private:
+	std::vector<const char*> complete_args();
+
     std::mutex _lock;
     std::string _filename;
     CXIndex _index;
     CXTranslationUnit _tunit;
     std::unique_ptr<command_line_args> _args;
+	std::vector<std::string> _clang_complete_args;
 };
 
 }

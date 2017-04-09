@@ -80,6 +80,7 @@ load = (editor) ->
 
   # create native libclang translation unit object for parsing/completions
   editor.clang.translationUnit = new ClangTranslationUnit getEditorPath editor
+  editor.clang.translationUnit.setClangCompleteRoot atom.workspace.project.getPaths()[0]
 
   # this queue ensures us that only one parse/reparse is ever outstanding
   editor.clang.coalescer = new ParseCoalescer parse, reparse
@@ -131,6 +132,7 @@ load = (editor) ->
   # handle a header only implementation file... At this point having a translation unit
   # per editor, even if its duplication over split panes, is easier to manage.
   # after this has a lot of the bugs and features worked out, this optimization can be revisited...
+
   if scope.isCScope editor.getRootScopeDescriptor()
     editor.clang.subscriptions.add atom.config.observe 'atom-clang.defaultCFlags', (flags) ->
       flags.push '-xc'

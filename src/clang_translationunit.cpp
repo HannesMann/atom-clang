@@ -5,6 +5,10 @@
 #include <cstdint>
 #include <sstream>
 #include <vector>
+#include <cstdio>
+#include <fstream>
+
+#include <libgen.h>
 
 #include "clang_helpers.hpp"
 #include "command_line_args.hpp"
@@ -212,6 +216,7 @@ void clang_translationunit::initialize(v8::Local<v8::Object> exports)
     Nan::SetPrototypeMethod(tpl, "parse", parse);
     Nan::SetPrototypeMethod(tpl, "completions", completions);
     Nan::SetPrototypeMethod(tpl, "setArgs", set_args);
+	Nan::SetPrototypeMethod(tpl, "setClangCompleteRoot", set_clang_complete_root);
     Nan::SetPrototypeMethod(tpl, "dispose", dispose);
 
     constructor.Reset(Nan::GetFunction(tpl).ToLocalChecked());
@@ -299,6 +304,13 @@ void clang_translationunit::set_args(const Nan::FunctionCallbackInfo<v8::Value>&
     obj->set_args(args);
 }
 
+void clang_translationunit::set_clang_complete_root(const Nan::FunctionCallbackInfo<v8::Value>& info)
+{
+    clang_translationunit* obj = Nan::ObjectWrap::Unwrap<clang_translationunit>(info.Holder());
+    auto args = v8::Local<v8::String>::Cast(info[0]);
+    obj->set_clang_complete_root(args);
+}
+
 void clang_translationunit::dispose(const Nan::FunctionCallbackInfo<v8::Value>& info)
 {
     clang_translationunit* obj = Nan::ObjectWrap::Unwrap<clang_translationunit>(info.Holder());
@@ -356,10 +368,12 @@ int clang_translationunit::parse(bool force_parse,
             // if we are forcing a full parse, make sure to dispose of the old one...
             dispose();
 
+			std::vector<const char*> args = complete_args();
+
             ret = clang_parseTranslationUnit2(_index,
                                               _filename.c_str(),
-                                              _args->data(),
-                                              _args->size(),
+                                              args.data(),
+                                              args.size(),
                                               unsaved_files.data(),
                                               unsaved_files.size(),
                                               options,
@@ -449,6 +463,50 @@ void clang_translationunit::set_args(v8::Local<v8::Array>& args)
     _args.reset(new command_line_args(args));
 }
 
+void clang_translationunit::set_clang_complete_root(v8::Local<v8::String>& args)
+{
+    _clang_complete_args.clear();
+
+	v8::String::Utf8Value rootv(args);
+	std::string root = *rootv;
+
+	char sdir[_filename.size() + 1];
+	for(std::size_t i = 0; i < _filename.size(); i++)
+		sdir[i] = _filename[i];
+
+	sdir[_filename.size()] = '\0';
+
+	char* dir = dirname(sdir);
+	this_logger::log("clang_translationunit .clang_complete search root: %s search dir start: %s", (const char*)root.c_str(), (const char*)dir);
+
+	while(std::string(dir).find(root) != std::string::npos)
+	{
+		this_logger::log("clang_translationunit .clang_complete searching in %s", dir);
+
+		std::ifstream clang_complete(std::string(dir) + "/.clang_complete");
+		if(clang_complete.is_open())
+		{
+			std::string line;
+
+			while(std::getline(clang_complete, line))
+			{
+				this_logger::log("clang_translationunit .clang_complete arg %s", line.c_str());
+			    _clang_complete_args.push_back(line);
+			}
+			
+			_clang_complete_args.push_back("-working-directory=" + std::string(dir));
+			this_logger::log("clang_translationunit .clang_complete -working-directory= %s", dir);
+
+			break;
+		}
+
+		std::string previous = dir;
+		dir = dirname(dir);
+		if(previous == dir)
+			break;
+	}
+}
+
 void clang_translationunit::dispose()
 {
     if (_tunit)
@@ -458,6 +516,19 @@ void clang_translationunit::dispose()
         clang_disposeTranslationUnit(_tunit);
         _tunit = nullptr;
     }
+}
+
+std::vector<const char*> clang_translationunit::complete_args()
+{
+	std::vector<const char*> args;
+
+	for(std::size_t i = 0; i < _args->size(); i++)
+		args.push_back(_args->data()[i]);
+
+	for(const std::string& arg : _clang_complete_args)
+		args.push_back(arg.c_str());
+
+	return args;
 }
 
 }
