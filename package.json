@@ -12,7 +12,7 @@
   "author": "Joe Roback",
   "version": "1.0.14",
   "main": "index",
-  "repository": "https://github.com/JoeRoback/atom-clang",
+  "repository": "https://github.com/joeroback/atom-clang",
   "license": "MIT",
   "engines": {
     "atom": ">=1.9.0 <2.0.0"
